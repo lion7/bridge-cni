@@ -1,0 +1,95 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  labels:
+    k8s-app: bridge-cni
+  name: bridge-cni
+rules:
+  - apiGroups:
+      - ""
+    resources:
+      - nodes
+    verbs:
+      - get
+      - list
+      - watch
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  labels:
+    k8s-app: bridge-cni
+  name: bridge-cni
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: bridge-cni
+subjects:
+  - kind: ServiceAccount
+    name: bridge-cni
+    namespace: kube-system
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  labels:
+    k8s-app: bridge-cni
+  name: bridge-cni
+  namespace: kube-system
+---
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: bridge-cni
+  namespace: kube-system
+  labels:
+    k8s-app: bridge-cni
+    tier: node
+spec:
+  selector:
+    matchLabels:
+      k8s-app: bridge-cni
+      tier: node
+  template:
+    metadata:
+      labels:
+        k8s-app: bridge-cni
+        tier: node
+    spec:
+      hostNetwork: true
+      containers:
+        - name: pause
+          image: registry.k8s.io/pause:3.10
+      initContainers:
+        - name: install-cni
+          image: ghcr.io/lion7/bridge-cni
+          args:
+            - /etc/cni/net.d/bridge-cni.conflist
+          env:
+            - name: NODE_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
+          volumeMounts:
+            - name: cni-conf
+              mountPath: /etc/cni/net.d
+      volumes:
+        - name: cni-conf
+          hostPath:
+            path: /etc/cni/net.d
+      serviceAccountName: bridge-cni
+      priorityClassName: system-node-critical
+      tolerations:
+        - effect: NoSchedule
+          operator: Exists
+        - effect: NoExecute
+          operator: Exists
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: kubernetes.io/os
+                    operator: In
+                    values:
+                      - linux
