@@ -1,6 +1,9 @@
 # bridge-cni
 
 A very simple tool to generate a CNI config that uses the bridge CNI plugin with the PodCIDR assigned by Kubernetes.
+Because each Pod is essentially added to a simple bridge, each Pod should have a directly reachable IP address for it to have internet access.
+There is no NAT involved at all! This can be achieved by using a public IPv4 subnet or a GUA IPv6 subnet.
+
 It is usually deployed as a `DaemonSet` and generates the file `/etc/cni/net.d/bridge-cni.conflist` with something like this:
 
 ```json
@@ -47,6 +50,9 @@ Note: make sure to set the node CIDR mask size to something smaller than the pre
 
 ### Talos Linux
 
+Initialize the cluster using an appropriate CIDR for the pods and services.
+Note that this example assumes KubePrism is enabled (as per the default).
+
 ```bash
 cluster:
   controllerManager:
@@ -61,6 +67,12 @@ cluster:
       - 2001:db8::c:0/112
     serviceSubnets:
       - 2001:db8::b:0/112
+```
+
+Apply the following YAML after cluster initialization:
+
+```bash
+kubectl apply -f https://raw.githubusercontent.com/lion7/bridge-cni/refs/heads/main/deploy/bridge-cni-talos-kubeprism.yaml
 ```
 
 Note: make sure to set the node CIDR mask size to something smaller than the prefix size that you use for pods.
